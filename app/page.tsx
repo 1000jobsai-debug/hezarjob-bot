@@ -1,7 +1,6 @@
 "use client"
 
 import type React from "react"
-
 import { useState, useRef, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Send, Copy, Bot, Plus } from "lucide-react"
@@ -47,18 +46,6 @@ export default function ChatPage() {
     setStreamingContent("")
   }
 
-  const simulateStreaming = async (text: string) => {
-    setStreamingContent("")
-    const words = text.split(" ")
-
-    for (let i = 0; i < words.length; i++) {
-      await new Promise((resolve) => setTimeout(resolve, 50))
-      setStreamingContent((prev) => prev + (i === 0 ? "" : " ") + words[i])
-    }
-
-    return text
-  }
-
   const handleSend = async () => {
     if (!input.trim() || isLoading) return
 
@@ -71,27 +58,46 @@ export default function ChatPage() {
     setMessages((prev) => [...prev, userMessage])
     setInput("")
     setIsLoading(true)
-
-    // Simulate AI response
-    const responses = [
-      "عالیه! خوشحالم که با شما آشنا شدم. **چند سوال دارم:**\n\n• چه تحصیلاتی دارید؟\n• چند سال سابقه کاری دارید؟\n• چه مهارت‌هایی دارید؟\n\nلطفاً به این سوالات پاسخ دهید تا بتوانم بهتر کمکتان کنم.",
-      "ممنون از اطلاعاتی که دادید. بر اساس پروفایل شما، **چند پیشنهاد شغلی** دارم:\n\n• **توسعه‌دهنده نرم‌افزار**: با توجه به مهارت‌های فنی شما\n• **مدیر پروژه**: با توجه به تجربه کاری شما\n• **مشاور فناوری**: ترکیبی از مهارت‌های فنی و ارتباطی\n\nکدام یک برایتان جذاب‌تر است؟",
-      "بسیار خوب! برای این مسیر شغلی، **توصیه‌های من:**\n\n1. **آموزش مداوم**: دوره‌های آنلاین را دنبال کنید\n2. **شبکه‌سازی**: در رویدادهای صنعتی شرکت کنید\n3. **پروژه‌های شخصی**: نمونه کارهای خود را بسازید\n\nآیا سوال دیگری دارید؟",
-    ]
-
-    const randomResponse = responses[Math.floor(Math.random() * responses.length)]
-
-    await simulateStreaming(randomResponse)
-
-    const assistantMessage: Message = {
-      id: (Date.now() + 1).toString(),
-      role: "assistant",
-      content: randomResponse,
-    }
-
-    setMessages((prev) => [...prev, assistantMessage])
     setStreamingContent("")
-    setIsLoading(false)
+
+    try {
+      const res = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: userMessage.content }),
+      })
+
+      if (!res.ok || !res.body) {
+        throw new Error("خطا در پاسخ از سرور")
+      }
+
+      const reader = res.body.getReader()
+      const decoder = new TextDecoder("utf-8")
+      let assistantMessage = ""
+
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        const chunk = decoder.decode(value, { stream: true })
+        assistantMessage += chunk
+        setStreamingContent(assistantMessage)
+      }
+
+      // ذخیره پیام کامل بعد از استریم
+      setMessages((prev) => [
+        ...prev,
+        { id: (Date.now() + 1).toString(), role: "assistant", content: assistantMessage },
+      ])
+      setStreamingContent("")
+    } catch (error) {
+      console.error(error)
+      setMessages((prev) => [
+        ...prev,
+        { id: (Date.now() + 1).toString(), role: "assistant", content: "⚠️ خطا در دریافت پاسخ از سرور." },
+      ])
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -149,17 +155,7 @@ export default function ChatPage() {
               >
                 {message.role === "assistant" ? (
                   <div className="prose prose-sm max-w-none">
-                    <ReactMarkdown
-                      components={{
-                        p: ({ children }) => <p className="mb-2 last:mb-0">{children}</p>,
-                        strong: ({ children }) => <strong className="font-bold">{children}</strong>,
-                        ul: ({ children }) => <ul className="mr-4 list-disc space-y-1">{children}</ul>,
-                        ol: ({ children }) => <ol className="mr-4 list-decimal space-y-1">{children}</ol>,
-                        li: ({ children }) => <li>{children}</li>,
-                      }}
-                    >
-                      {message.content}
-                    </ReactMarkdown>
+                    <ReactMarkdown>{message.content}</ReactMarkdown>
                   </div>
                 ) : (
                   <p className="whitespace-pre-wrap">{message.content}</p>
@@ -186,32 +182,8 @@ export default function ChatPage() {
               </div>
               <div className="max-w-[80%] rounded-2xl bg-white px-4 py-3 text-gray-800 shadow-sm">
                 <div className="prose prose-sm max-w-none">
-                  <ReactMarkdown
-                    components={{
-                      p: ({ children }) => <p className="mb-2 last:mb-0">{children}</p>,
-                      strong: ({ children }) => <strong className="font-bold">{children}</strong>,
-                      ul: ({ children }) => <ul className="mr-4 list-disc space-y-1">{children}</ul>,
-                      ol: ({ children }) => <ol className="mr-4 list-decimal space-y-1">{children}</ol>,
-                      li: ({ children }) => <li>{children}</li>,
-                    }}
-                  >
-                    {streamingContent}
-                  </ReactMarkdown>
+                  <ReactMarkdown>{streamingContent}</ReactMarkdown>
                 </div>
-              </div>
-            </div>
-          )}
-
-          {/* Typing Indicator */}
-          {isLoading && !streamingContent && (
-            <div className="flex gap-3 justify-start">
-              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-blue-100">
-                <Bot className="h-4 w-4 text-blue-600" />
-              </div>
-              <div className="flex items-center gap-1 rounded-2xl bg-white px-4 py-3 shadow-sm">
-                <div className="h-2 w-2 animate-bounce rounded-full bg-gray-400 [animation-delay:-0.3s]"></div>
-                <div className="h-2 w-2 animate-bounce rounded-full bg-gray-400 [animation-delay:-0.15s]"></div>
-                <div className="h-2 w-2 animate-bounce rounded-full bg-gray-400"></div>
               </div>
             </div>
           )}
