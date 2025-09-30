@@ -26,9 +26,6 @@ export default function ChatPage() {
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
-  // شناسه کاربر (برای شروع ثابت، بعداً می‌تونی لاگین یا uuid بسازی)
-  const USER_ID = 1
-
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
   }
@@ -67,26 +64,31 @@ export default function ChatPage() {
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          userId: USER_ID, // 👈 اضافه شد
-          message: userMessage.content,
-        }),
+        body: JSON.stringify({ message: userMessage.content }),
       })
 
-      if (!res.ok) {
+      if (!res.ok || !res.body) {
         throw new Error("خطا در پاسخ از سرور")
       }
 
-      const data = await res.json()
+      const reader = res.body.getReader()
+      const decoder = new TextDecoder("utf-8")
+      let assistantMessage = ""
 
-      // جواب نهایی از بک‌اند
-      const assistantMessage = data.reply || "⚠️ پاسخی دریافت نشد."
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        const chunk = decoder.decode(value, { stream: true })
+        assistantMessage += chunk
+        setStreamingContent(assistantMessage)
+      }
 
-      // ذخیره پیام دستیار
+      // ذخیره پیام کامل بعد از استریم
       setMessages((prev) => [
         ...prev,
         { id: (Date.now() + 1).toString(), role: "assistant", content: assistantMessage },
       ])
+      setStreamingContent("")
     } catch (error) {
       console.error(error)
       setMessages((prev) => [
@@ -95,7 +97,6 @@ export default function ChatPage() {
       ])
     } finally {
       setIsLoading(false)
-      setStreamingContent("")
     }
   }
 
@@ -173,15 +174,16 @@ export default function ChatPage() {
             </div>
           ))}
 
-          {isLoading && (
+          {/* Streaming Message */}
+          {isLoading && streamingContent && (
             <div className="flex gap-3 justify-start">
               <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-blue-100">
                 <Bot className="h-4 w-4 text-blue-600" />
               </div>
-              <div className="flex items-center gap-1 rounded-2xl bg-white px-4 py-3 shadow-sm">
-                <div className="h-2 w-2 animate-bounce rounded-full bg-gray-400 [animation-delay:-0.3s]"></div>
-                <div className="h-2 w-2 animate-bounce rounded-full bg-gray-400 [animation-delay:-0.15s]"></div>
-                <div className="h-2 w-2 animate-bounce rounded-full bg-gray-400"></div>
+              <div className="max-w-[80%] rounded-2xl bg-white px-4 py-3 text-gray-800 shadow-sm">
+                <div className="prose prose-sm max-w-none">
+                  <ReactMarkdown>{streamingContent}</ReactMarkdown>
+                </div>
               </div>
             </div>
           )}
