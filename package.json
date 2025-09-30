@@ -61,6 +61,10 @@
     "tailwindcss-animate": "^1.0.7",
     "vaul": "^0.9.9",
     "zod": "3.25.67"
+    "express": "^4.18.2",
+    "pg": "^8.11.0",
+    "google-generativeai": "^0.8.0",
+    "node-fetch": "^3.3.2"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.1.9",
