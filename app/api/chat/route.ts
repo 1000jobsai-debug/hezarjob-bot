@@ -1,6 +1,5 @@
 "use client"
 
-import type React from "react"
 import { useState, useRef, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Send, Copy, Bot, Plus } from "lucide-react"
@@ -62,10 +61,12 @@ export default function ChatPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          userId: 1, // در نسخه وب آی‌دی ثابت بذار
+          userId: 1, // آی‌دی ثابت برای نسخه وب
           message: userMessage.content,
         }),
       })
+
+      if (!res.ok) throw new Error("خطا در پاسخ سرور")
 
       const data = await res.json()
       const reply = data.reply || "⚠️ پاسخی از سرور دریافت نشد."
@@ -147,17 +148,7 @@ export default function ChatPage() {
               >
                 {message.role === "assistant" ? (
                   <div className="prose prose-sm max-w-none">
-                    <ReactMarkdown
-                      components={{
-                        p: ({ children }) => <p className="mb-2 last:mb-0">{children}</p>,
-                        strong: ({ children }) => <strong className="font-bold">{children}</strong>,
-                        ul: ({ children }) => <ul className="mr-4 list-disc space-y-1">{children}</ul>,
-                        ol: ({ children }) => <ol className="mr-4 list-decimal space-y-1">{children}</ol>,
-                        li: ({ children }) => <li>{children}</li>,
-                      }}
-                    >
-                      {message.content}
-                    </ReactMarkdown>
+                    <ReactMarkdown>{message.content}</ReactMarkdown>
                   </div>
                 ) : (
                   <p className="whitespace-pre-wrap">{message.content}</p>
