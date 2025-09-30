@@ -1,29 +1,43 @@
-import { type NextRequest, NextResponse } from "next/server"
+import { streamText } from "ai"
+import type { NextRequest } from "next/server"
+
+export const maxDuration = 30
 
 export async function POST(req: NextRequest) {
   try {
     const { message } = await req.json()
 
     if (!message || typeof message !== "string") {
-      return NextResponse.json({ error: "پیام نامعتبر است" }, { status: 400 })
+      return Response.json({ error: "پیام نامعتبر است" }, { status: 400 })
     }
 
+    const result = streamText({
+      model: "google/gemini-2.0-flash-exp",
+      system: `تو یک مشاور شغلی حرفه‌ای و دوستانه به نام «هزارجاب» هستی. وظیفه‌ات کمک به افراد در مسیر شغلی‌شان است.
+
+رفتار تو:
+- همیشه به فارسی پاسخ بده
+- دوستانه، صمیمی و حرفه‌ای باش
+- سوالات هدفمند بپرس تا بهتر بتونی کمک کنی
+- توصیه‌های عملی و کاربردی بده
+- از تجربیات واقعی و مثال‌های ملموس استفاده کن
+- اگر اطلاعات کافی نداری، سوال بپرس
+- به مهارت‌ها، علایق و اهداف شخص توجه کن
+
+هدف تو: کمک به افراد برای پیدا کردن شغل مناسب، توسعه مهارت‌ها، و پیشرفت در مسیر شغلی`,
+      prompt: message,
+      temperature: 0.7,
+      maxTokens: 2000,
+    })
+
+    // Return streaming response
     const encoder = new TextEncoder()
     const stream = new ReadableStream({
       async start(controller) {
         try {
-          // TODO: Replace this with actual AI API call
-          // For now, simulating a streaming response
-          const response = `شما گفتید: "${message}"\n\nاین یک پاسخ نمونه است. لطفاً این قسمت را با فراخوانی واقعی API هوش مصنوعی جایگزین کنید.`
-
-          // Simulate streaming by sending word by word
-          const words = response.split(" ")
-          for (const word of words) {
-            controller.enqueue(encoder.encode(word + " "))
-            // Small delay to simulate streaming
-            await new Promise((resolve) => setTimeout(resolve, 50))
+          for await (const chunk of result.textStream) {
+            controller.enqueue(encoder.encode(chunk))
           }
-
           controller.close()
         } catch (error) {
           console.error("Error in stream:", error)
@@ -40,6 +54,6 @@ export async function POST(req: NextRequest) {
     })
   } catch (error) {
     console.error("API error:", error)
-    return NextResponse.json({ error: "خطا در پردازش درخواست" }, { status: 500 })
+    return Response.json({ error: "خطا در پردازش درخواست" }, { status: 500 })
   }
 }
